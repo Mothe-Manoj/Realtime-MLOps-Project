@@ -43,10 +43,22 @@ churn-model/
 ├── train.py                   # Train the model
 ├── api.py                     # FastAPI inference server
 ├── requirements.txt           # Python dependencies
-
+├── Dockerfile                 # Container image
+├── .dvc/config               # DVC configuration
+├── models/
+│   └── churn_model.pkl.dvc   # DVC metadata for model
+├── k8s/
+│   ├── deployment.yaml       # Kubernetes deployment
+│   └── inference.yaml        # KServe inference service
+├── .github/workflows/
+│   └── mlops-pipeline.yaml   # GitHub Actions CI/CD
+└── argocd/
+    └── application.yaml      # ArgoCD application
 ```
 
-## 1. Initial Setup
+## MLOps Pipeline Steps
+
+### 1. Initial Setup
 
 ```bash
 # Install dependencies
@@ -62,6 +74,79 @@ python train.py
 python api.py
 # Visit http://localhost:8000/docs
 ```
+
+### 2. DVC Setup (Data Version Control)
+
+```bash
+# Initialize DVC
+dvc init
+
+# Configure S3 remote
+dvc remote add -d myremote s3://my-bucket/churn-model
+
+# Track model with DVC
+dvc add models/churn_model.pkl
+
+# Push to S3
+dvc push
+
+# Commit DVC metadata
+git add models/churn_model.pkl.dvc .dvc/ .gitignore
+git commit -m "Track model with DVC"
+```
+
+
+
+### 4. S3 Configuration
+
+**Note:** This section is already covered in Step 3. S3 is used by DVC to store models.
+
+
+### 8. GitHub Actions
+
+**Required Secrets:**
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+
+**Pipeline Flow:**
+1. Checkout code
+2. Generate dataset
+3. Train model
+4. Push model to S3 via DVC
+5. Build Docker image
+6. Push image to ECR
+7. Update `inference.yaml` with new image tag
+8. Commit changes (triggers ArgoCD)
+
+### 9. ArgoCD (GitOps)
+
+```bash
+# Install ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Deploy application
+kubectl apply -f argocd/application.yaml
+
+# Access ArgoCD UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+# Get admin password
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+## Complete MLOps Workflow
+
+1. **Developer pushes code** → GitHub
+2. **GitHub Actions triggered:**
+   - Trains model
+   - Pushes model to S3 (DVC)
+   - Builds Docker image
+   - Pushes to ECR
+   - Updates `inference.yaml`
+3. **ArgoCD detects change** in `inference.yaml`
+4. **ArgoCD syncs** → Deploys to Kubernetes
+5. **KServe serves** the new model version
 
 ## API Usage
 
@@ -81,6 +166,22 @@ Response:
 ```json
 {
   "churn": 1,
-  "churn_probability": 0.53
+  "churn_probability": 0.73
 }
 ```
+
+## Key Components
+
+- **DVC**: Version control for data and models in S3
+- **S3**: Remote storage for models and data
+- **KServe**: Serverless ML inference on Kubernetes
+- **KIND**: Local Kubernetes for testing
+- **GitHub Actions**: CI/CD automation
+- **ArgoCD**: GitOps continuous deployment
+
+## Notes
+
+- Replace `your-registry` in YAML files with your actual container registry
+- Replace `your-org` with your GitHub organization
+- Replace `my-bucket` with your S3 bucket name
+- This is a minimal demo - production setups require monitoring, logging, and security hardening
