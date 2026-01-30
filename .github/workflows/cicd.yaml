@@ -23,9 +23,10 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}  # Use built-in token
 
     - name: Set up python
-      uses: actions/setup-python@6
+      uses: actions/setup-python@v6
       with:
-        python-version: '3.11'
+        python-version: '3.13'
+        cache: 'pip'
 
     - name: Install dependencies
       run: |
