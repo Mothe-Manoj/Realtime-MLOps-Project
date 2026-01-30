@@ -3,17 +3,15 @@ name: MLops pipeline
 on:
   push:
     branches: [cicd]
-  worflow_dispached:  #This trigger allows you to manually start a workflow rather than waiting for an automated event like a code push. 
+  workflow_dispatch:  #This trigger allows you to manually start a workflow rather than waiting for an automated event like a code push. 
 
 env:
   AWS_REGION: ap-south-1
   S3_BUCKET: churn-model-manoj-S3_BUCKET
 
 jobs:
-
-  train and deploy model:
+  train_and_deploy_model:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write # Required to push commits, block is used to define exactly what the automatically generated GITHUB_TOKEN can do during the job run.
 
