@@ -1,0 +1,66 @@
+name: MLops pipeline
+
+on:
+  push:
+    branches: [cicd]
+  worflow_dispached:  #This trigger allows you to manually start a workflow rather than waiting for an automated event like a code push. 
+
+env:
+  AWS_REGION: ap-south-1
+  S3_BUCKET: churn-model-manoj-S3_BUCKET
+
+jobs:
+
+  train and deploy model:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Required to push commits, block is used to define exactly what the automatically generated GITHUB_TOKEN can do during the job run.
+
+    steps:
+
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}  # Use built-in token
+
+    - name: Set up python
+      uses: actions/setup-python@4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip3 install -r requirements.txt
+
+    - name: Generate dataset
+      run: python generate_data.py
+    
+    - name: Train model
+      run: python train.py
+
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Push model to S3 directly
+      run: |
+        aws s3 cp models/churn_model.pkl s3://churn-model-bucket-cicd-abhi/models/churn_model.pkl
+        echo "Model pushed to S3 is success"
+
+#This command is a stream editor (sed) trick used to inject your freshly trained model's location into a Kubernetes configuration file.
+    - name: Update inference.yaml with S3 model path
+      run: |
+        MODEL_URI="s3://churn-model-bucket-cicd-abhi/models/churn_model.pkl"
+        sed -i "s|storageUri: .*|storageUri: $MODEL_URI|g" k8s/inference.yaml  
+
+    - name: Commit updated inference.yaml
+      run: |
+        git config --local user.email "manojmothe@github.com"
+        git config --local user.name "Manoj Mothe"
+        git add k8s/inference.yaml
+        git commit -m "Update model S3 path [skip ci]" || echo "No changes"
+        git push || echo "No changes to push"
