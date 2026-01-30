@@ -33,7 +33,7 @@ jobs:
         pip3 install -r requirements.txt
 
     - name: Generate dataset
-      run: python generate_data.py
+      run: python generate-data.py
     
     - name: Train model
       run: python train.py
